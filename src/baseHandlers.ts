@@ -1,6 +1,6 @@
 import { reactive, proxyMap, toRaw } from "./reactive";
 import { ReactiveFlags } from "./reactive";
-import { isObject, hasChanged, isArray } from "./utils";
+import { isObject, hasChanged, isArray, isIntegerKey } from "./utils";
 import { track, trigger } from "./effect";
 import { TrackOpTypes, TriggerOpTypes } from "./operations";
 
@@ -62,13 +62,31 @@ function set(
 ): boolean {
   // 判断是否有这个属性
   const hadKey = target.hasOwnProperty(key);
+  console.log(hadKey, key, "h", typeof key);
   const oldVal = target[key];
+  // 如果是数组，要判断新设置的下标是否＞原来length 要更新length 隐式长度变化
+  // 如果是数组，显式把length改小，那需要修改length 和 把原来数组中的多余元素做DELETE操作
+  const needUpdateLength =
+    isArray(target) && isIntegerKey(key) && Number(key) >= target.length - 1;
   // 如果没有这个属性，说明是新增操作
   if (!hadKey) {
     trigger(target, TriggerOpTypes.ADD, key);
+    // 不需要再额外判断是不是length属性 isIntegerKey 已经保证了
+    if (needUpdateLength) {
+      trigger(target, TriggerOpTypes.SET, "length");
+    }
     // 如果有这个属性，并且确实改变了前后的值 那么派发更新
   } else if (hasChanged(oldVal, value)) {
     trigger(target, TriggerOpTypes.SET, key);
+    if (
+      isArray(target) &&
+      key === "length" &&
+      (value as number) < target.length
+    ) {
+      for (let i = value as number; i < target.length; i++) {
+        trigger(target, TriggerOpTypes.DELETE, i + "");
+      }
+    }
   }
   return Reflect.set(target, key, value, receiver);
 }

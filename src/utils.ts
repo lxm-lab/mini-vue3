@@ -4,12 +4,21 @@ export const isObject = (val: unknown): val is Record<any, any> => {
   // 这里不考虑值为function的情况
   return val !== null && typeof val === "object";
 };
-export const isArray = (val: unknown): val is unknown[] => {
-  // 这里不考虑值为function的情况
-  return Array.isArray(val);
+export const isString = (val: unknown): val is string => {
+  return typeof val === "string";
 };
+
+export const isArray = Array.isArray;
 
 export const hasChanged = (oldVal: any, val: any) => {
   // 不用 === 要考虑到 NaN === NaN 和 +0 === -0 的问题
   return !Object.is(oldVal, val);
+};
+export const isIntegerKey = (key: unknown) => {
+  return (
+    isString(key) &&
+    key !== "NaN" &&
+    key[0] !== "-" &&
+    "" + parseInt(key, 10) === key
+  );
 };

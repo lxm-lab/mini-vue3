@@ -40,7 +40,7 @@ const proxyObj = reactive(obj);
 const o = {
   a: 4,
 };
-const arr = [1, 2, 3, o];
+const arr = [3, o, , 3];
 const proxyArr = reactive(arr);
 // console.log(proxyArr[0]);
 // proxyArr[1] = 22;
@@ -51,4 +51,9 @@ const proxyArr = reactive(arr);
 // for (const key in proxyArr) {
 //   key
 // }
-console.log(proxyArr.indexOf(o));
+// console.log(proxyArr.indexOf(o));
+// 超出数组长度的赋值 没有对length进行依赖收集
+// proxyArr[10] = 9
+proxyArr.length = 1;
+// proxyArr.pop()
+console.log(proxyArr);
