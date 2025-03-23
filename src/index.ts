@@ -54,6 +54,8 @@ const proxyArr = reactive(arr);
 // console.log(proxyArr.indexOf(o));
 // 超出数组长度的赋值 没有对length进行依赖收集
 // proxyArr[10] = 9
-proxyArr.length = 1;
-// proxyArr.pop()
+// proxyArr.length = 1;
+// push pop shift unshift splice
+// length属性被收集 又被设置 会引起死循环 vue3 issue #2137 重写方法
+proxyArr.push(1)
 console.log(proxyArr);

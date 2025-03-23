@@ -1,7 +1,7 @@
 import { reactive, proxyMap, toRaw } from "./reactive";
 import { ReactiveFlags } from "./reactive";
 import { isObject, hasChanged, isArray, isIntegerKey } from "./utils";
-import { track, trigger } from "./effect";
+import { track, trigger, enableTracking, pauseTracking } from "./effect";
 import { TrackOpTypes, TriggerOpTypes } from "./operations";
 
 const ITERATE_KEY = Symbol("iterate");
@@ -27,6 +27,15 @@ const arrayInstrumentations: Record<string, Function> = {};
     } else {
       return res;
     }
+  };
+});
+(["push", "pop", "shift", "unshift", "splice"] as const).forEach((key) => {
+  const method = Array.prototype[key] as any;
+  arrayInstrumentations[key] = function (this: unknown[], ...args: unknown[]) {
+    pauseTracking();
+    const res = method.apply(this, args);
+    enableTracking();
+    return res;
   };
 });
 function get(target: object, key: string | symbol, receiver: object): any {
@@ -62,7 +71,6 @@ function set(
 ): boolean {
   // 判断是否有这个属性
   const hadKey = target.hasOwnProperty(key);
-  console.log(hadKey, key, "h", typeof key);
   const oldVal = target[key];
   // 如果是数组，要判断新设置的下标是否＞原来length 要更新length 隐式长度变化
   // 如果是数组，显式把length改小，那需要修改length 和 把原来数组中的多余元素做DELETE操作
@@ -73,17 +81,22 @@ function set(
     trigger(target, TriggerOpTypes.ADD, key);
     // 不需要再额外判断是不是length属性 isIntegerKey 已经保证了
     if (needUpdateLength) {
+      console.log(key);
+
       trigger(target, TriggerOpTypes.SET, "length");
     }
     // 如果有这个属性，并且确实改变了前后的值 那么派发更新
   } else if (hasChanged(oldVal, value)) {
+    console.log(key);
     trigger(target, TriggerOpTypes.SET, key);
     if (
       isArray(target) &&
       key === "length" &&
       (value as number) < target.length
     ) {
+      console.log(value, key, target.length);
       for (let i = value as number; i < target.length; i++) {
+        console.log(i);
         trigger(target, TriggerOpTypes.DELETE, i + "");
       }
     }
