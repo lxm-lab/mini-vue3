@@ -1,4 +1,4 @@
-import { reactive } from "./reactive";
+import { reactive, readonly } from "./reactive";
 const obj = {
   name: "labmen",
   age: 18,
@@ -57,5 +57,7 @@ const proxyArr = reactive(arr);
 // proxyArr.length = 1;
 // push pop shift unshift splice
 // length属性被收集 又被设置 会引起死循环 vue3 issue #2137 重写方法
-proxyArr.push(1)
-console.log(proxyArr);
+const r = readonly(arr);
+r[0] = 1;
+// proxyArr.push(1);
+// console.log(proxyArr);
