@@ -7,6 +7,9 @@ export const isObject = (val: unknown): val is Record<any, any> => {
 export const isString = (val: unknown): val is string => {
   return typeof val === "string";
 };
+export const isSymbol = (val: unknown): val is symbol => {
+  return typeof val === "symbol";
+};
 
 export const isArray = Array.isArray;
 

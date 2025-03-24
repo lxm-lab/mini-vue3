@@ -57,7 +57,11 @@ const proxyArr = reactive(arr);
 // proxyArr.length = 1;
 // push pop shift unshift splice
 // length属性被收集 又被设置 会引起死循环 vue3 issue #2137 重写方法
-const r = readonly(arr);
-r[0] = 1;
+// const r = readonly(arr);
+// @ts-ignore
+// r[0] = 1;
+// Symbol(Symbol.toStringTag) 可以显示设置这个值 也会导致这个被依赖收集
+console.log(proxyObj.toString());
+
 // proxyArr.push(1);
 // console.log(proxyArr);

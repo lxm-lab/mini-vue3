@@ -1,11 +1,16 @@
 import { reactive, reactiveMap, readonly, toRaw } from "./reactive";
 import { ReactiveFlags } from "./reactive";
-import { isObject, hasChanged, isArray, isIntegerKey } from "./utils";
+import { isObject, hasChanged, isArray, isIntegerKey, isSymbol } from "./utils";
 import { track, trigger, enableTracking, pauseTracking } from "./effect";
 import { TrackOpTypes, TriggerOpTypes } from "./operations";
 
 const ITERATE_KEY = Symbol("iterate");
-
+// 获取原型上所有Symbol的键
+const builtInSymbols = new Set(
+  Object.getOwnPropertyNames(Symbol)
+    .map((key) => (Symbol as any)[key])
+    .filter(isSymbol)
+);
 // 重写的数组方法，统一管理
 const arrayInstrumentations: Record<string, Function> = {};
 
@@ -67,12 +72,23 @@ function createGetter(isReadonly = false, isShallow = false) {
     if (targetIsArray && arrayInstrumentations.hasOwnProperty(key)) {
       return Reflect.get(arrayInstrumentations, key, receiver);
     }
+    const res = Reflect.get(target, key, receiver);
+    // 特殊属性的处理 如果不处理 那只要用到对象原型上的方法都会进行依赖收集
+    // 而这些依赖收集是不必要的所以都避免掉
+    // 比如：调用toString 其实是原型上的  Symbol(Symbol.toStringTag)属性
+    // 比如：迭代器的方法 其实是原型上的  Symbol(Symbol.iterator)属性
+    // 只需要判断 __proto__ 和 symbol类型的键是不是原型上的就可以
+    const keyIsSymbol = isSymbol(key);
+    if (keyIsSymbol ? builtInSymbols.has(key) : key === "__proto__") {
+      return res;
+    }
     if (!isReadonly) {
       track(target, TrackOpTypes.GET, key);
     }
-    const res = Reflect.get(target, key, receiver);
+
     // 如果读取的值是对象，在递归代理
     if (isObject(res)) {
+      // 递归的时候思考 __proto__ 会不会被递归监听，要不要处理
       return isReadonly ? readonly(res) : reactive(res);
     }
     return res;
