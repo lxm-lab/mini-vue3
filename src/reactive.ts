@@ -1,5 +1,9 @@
 import { isObject } from "./utils";
-import { mutableHandlers, readonlyHandlers } from "./baseHandlers";
+import {
+  mutableHandlers,
+  readonlyHandlers,
+  shallowHandlers,
+} from "./baseHandlers";
 export const enum ReactiveFlags {
   IS_REACTIVE = "__v_isReactive", // 判断是否代理过
   RAW = "__v_raw", // 判断是不是原始对象
@@ -62,6 +66,10 @@ type DeepReadonly<T extends Record<string, any>> = {
 };
 export function readonly<T extends object>(target: T): DeepReadonly<T> {
   return createReactiveObject(target, true, readonlyHandlers);
+}
+
+export function shallowReactive<T extends object>(target: T) {
+  return createReactiveObject(target, false, shallowHandlers);
 }
 export function toRaw<T>(target: T): T {
   return (target && (target as Target)[ReactiveFlags.RAW]) || target;

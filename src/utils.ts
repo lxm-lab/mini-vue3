@@ -25,3 +25,5 @@ export const isIntegerKey = (key: unknown) => {
     "" + parseInt(key, 10) === key
   );
 };
+
+export const extend = Object.assign;

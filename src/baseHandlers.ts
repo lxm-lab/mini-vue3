@@ -1,6 +1,13 @@
 import { reactive, reactiveMap, readonly, toRaw } from "./reactive";
 import { ReactiveFlags } from "./reactive";
-import { isObject, hasChanged, isArray, isIntegerKey, isSymbol } from "./utils";
+import {
+  isObject,
+  hasChanged,
+  isArray,
+  isIntegerKey,
+  isSymbol,
+  extend,
+} from "./utils";
 import { track, trigger, enableTracking, pauseTracking } from "./effect";
 import { TrackOpTypes, TriggerOpTypes } from "./operations";
 
@@ -85,7 +92,10 @@ function createGetter(isReadonly = false, isShallow = false) {
     if (!isReadonly) {
       track(target, TrackOpTypes.GET, key);
     }
-
+    // 如果是浅层代理代理 那么不需要递归
+    if (isShallow) {
+      return res;
+    }
     // 如果读取的值是对象，在递归代理
     if (isObject(res)) {
       // 递归的时候思考 __proto__ 会不会被递归监听，要不要处理
@@ -96,6 +106,7 @@ function createGetter(isReadonly = false, isShallow = false) {
 }
 const get = createGetter();
 const readonlyGet = createGetter(true);
+const shallowGet = createGetter(false, true);
 // function get(target: object, key: string | symbol, receiver: object): any {
 //   // 用于判断是不是代理后的对象 打标识
 //   if (key === ReactiveFlags.IS_REACTIVE) {
@@ -121,46 +132,92 @@ const readonlyGet = createGetter(true);
 // }
 
 // 要判断是否有这个属性，区别修改还是新增，并且要判断前后更改的值是否相同
-function set(
-  target: Record<string | symbol, any>,
-  key: string | symbol,
-  value: unknown,
-  receiver: object
-): boolean {
-  // 判断是否有这个属性
-  const hadKey = target.hasOwnProperty(key);
-  const oldVal = target[key];
-  // 如果是数组，要判断新设置的下标是否＞原来length 要更新length 隐式长度变化
-  // 如果是数组，显式把length改小，那需要修改length 和 把原来数组中的多余元素做DELETE操作
-  const needUpdateLength =
-    isArray(target) && isIntegerKey(key) && Number(key) >= target.length - 1;
-  // 如果没有这个属性，说明是新增操作
-  if (!hadKey) {
-    trigger(target, TriggerOpTypes.ADD, key);
-    // 不需要再额外判断是不是length属性 isIntegerKey 已经保证了
-    if (needUpdateLength) {
-      console.log(key);
 
-      trigger(target, TriggerOpTypes.SET, "length");
-    }
-    // 如果有这个属性，并且确实改变了前后的值 那么派发更新
-  } else if (hasChanged(oldVal, value)) {
-    console.log(key);
-    trigger(target, TriggerOpTypes.SET, key);
-    if (
-      isArray(target) &&
-      key === "length" &&
-      (value as number) < target.length
-    ) {
-      console.log(value, key, target.length);
-      for (let i = value as number; i < target.length; i++) {
-        console.log(i);
-        trigger(target, TriggerOpTypes.DELETE, i + "");
+function createSetter(isShallow = false) {
+  return function set(
+    target: Record<string | symbol, any>,
+    key: string | symbol,
+    value: unknown,
+    receiver: object
+  ): boolean {
+    // 判断是否有这个属性
+    const hadKey = target.hasOwnProperty(key);
+    const oldVal = target[key];
+    // 如果是数组，要判断新设置的下标是否＞原来length 要更新length 隐式长度变化
+    // 如果是数组，显式把length改小，那需要修改length 和 把原来数组中的多余元素做DELETE操作
+    const needUpdateLength =
+      isArray(target) && isIntegerKey(key) && Number(key) >= target.length - 1;
+    // 如果没有这个属性，说明是新增操作
+    if (!hadKey) {
+      trigger(target, TriggerOpTypes.ADD, key);
+      // 不需要再额外判断是不是length属性 isIntegerKey 已经保证了
+      if (needUpdateLength) {
+        console.log(key);
+
+        trigger(target, TriggerOpTypes.SET, "length");
+      }
+      // 如果有这个属性，并且确实改变了前后的值 那么派发更新
+    } else if (hasChanged(oldVal, value)) {
+      console.log(key);
+      trigger(target, TriggerOpTypes.SET, key);
+      if (
+        isArray(target) &&
+        key === "length" &&
+        (value as number) < target.length
+      ) {
+        console.log(value, key, target.length);
+        for (let i = value as number; i < target.length; i++) {
+          console.log(i);
+          trigger(target, TriggerOpTypes.DELETE, i + "");
+        }
       }
     }
-  }
-  return Reflect.set(target, key, value, receiver);
+    return Reflect.set(target, key, value, receiver);
+  };
 }
+
+const set = createSetter();
+const shallowSet = createSetter(true);
+// function set(
+//   target: Record<string | symbol, any>,
+//   key: string | symbol,
+//   value: unknown,
+//   receiver: object
+// ): boolean {
+//   // 判断是否有这个属性
+//   const hadKey = target.hasOwnProperty(key);
+//   const oldVal = target[key];
+//   // 如果是数组，要判断新设置的下标是否＞原来length 要更新length 隐式长度变化
+//   // 如果是数组，显式把length改小，那需要修改length 和 把原来数组中的多余元素做DELETE操作
+//   const needUpdateLength =
+//     isArray(target) && isIntegerKey(key) && Number(key) >= target.length - 1;
+//   // 如果没有这个属性，说明是新增操作
+//   if (!hadKey) {
+//     trigger(target, TriggerOpTypes.ADD, key);
+//     // 不需要再额外判断是不是length属性 isIntegerKey 已经保证了
+//     if (needUpdateLength) {
+//       console.log(key);
+
+//       trigger(target, TriggerOpTypes.SET, "length");
+//     }
+//     // 如果有这个属性，并且确实改变了前后的值 那么派发更新
+//   } else if (hasChanged(oldVal, value)) {
+//     console.log(key);
+//     trigger(target, TriggerOpTypes.SET, key);
+//     if (
+//       isArray(target) &&
+//       key === "length" &&
+//       (value as number) < target.length
+//     ) {
+//       console.log(value, key, target.length);
+//       for (let i = value as number; i < target.length; i++) {
+//         console.log(i);
+//         trigger(target, TriggerOpTypes.DELETE, i + "");
+//       }
+//     }
+//   }
+//   return Reflect.set(target, key, value, receiver);
+// }
 function has(target: object, key: string | symbol): boolean {
   track(target, TrackOpTypes.HAS, key);
   return Reflect.has(target, key);
@@ -202,3 +259,11 @@ export const readonlyHandlers: ProxyHandler<object> = {
     return true;
   },
 };
+export const shallowHandlers: ProxyHandler<object> = extend(
+  {},
+  mutableHandlers,
+  {
+    get: shallowGet,
+    set: shallowSet,
+  }
+);
